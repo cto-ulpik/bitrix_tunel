@@ -131,6 +131,31 @@ export class HotmartService {
 
     this.logger.log(`Compra procesada exitosamente. Deal ID: ${dealId}`);
 
+    // Crear tarea automática de seguimiento
+    let taskId: string | null = null;
+    try {
+      const fechaLimite = new Date();
+      fechaLimite.setDate(fechaLimite.getDate() + 3); // 3 días después de la compra
+      
+      taskId = await this.bitrixService.crearTareaParaNegociacion(
+        dealId,
+        `Seguimiento post-compra: ${nombre}`,
+        `Cliente: ${nombre}
+Producto: ${productoNombre}
+Monto: ${moneda} ${precio}
+Email: ${email}
+Teléfono: ${telefono}
+
+Acción requerida: Verificar que el cliente recibió acceso al producto y confirmar su satisfacción.`,
+        fechaLimite.toISOString().split('T')[0] + ' 18:00:00',
+      );
+      
+      this.logger.log(`Tarea de seguimiento creada. Task ID: ${taskId}`);
+    } catch (error) {
+      this.logger.error(`Error creando tarea automática: ${error.message}`);
+      // No lanzar error, continuar con el proceso
+    }
+
     // Registrar en la base de datos de auditoría
     await this.auditService.log({
       action: 'compra_procesada',
@@ -138,6 +163,7 @@ export class HotmartService {
       event_type: webhook.event,
       bitrix_contact_id: String(contactId),
       bitrix_deal_id: String(dealId),
+      bitrix_activity_id: taskId || undefined,
       user_name: nombre,
       user_phone: telefono,
       user_email: email,
@@ -150,6 +176,7 @@ export class HotmartService {
         transaction: purchase?.transaction,
         payment_method: purchase?.payment?.method,
         payment_type: purchase?.payment?.type,
+        task_id: taskId,
       },
     });
 
@@ -158,6 +185,7 @@ export class HotmartService {
       contactId,
       dealId,
       producto: productoNombre,
+      taskId,
     };
   }
 
