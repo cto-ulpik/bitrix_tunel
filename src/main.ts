@@ -26,8 +26,10 @@ async function bootstrap() {
   app.use(urlencoded({ extended: true, limit: '150mb' }));
   //Cors
   app.enableCors();
-  //Prefijo Global de la api
-  app.setGlobalPrefix('api');
+  //Prefijo Global de la api (excepto para AppController raíz)
+  app.setGlobalPrefix('api', {
+    exclude: ['/', 'health', 'status'],
+  });
   // Configuración de CORS
   app.enableCors({
     origin: ['*'],
