@@ -215,7 +215,7 @@ Acción requerida: Verificar que el cliente recibió acceso al producto y confir
     const buyer = data?.buyer;
     const telefono = this.extractPhone(buyer);
 
-    const contacto = await this.bitrixService.buscarContactoPorTelefono(telefono);
+    const contacto = await this.bitrixService.buscarContactoPorTelefonoOEmail(telefono);
     if (!contacto) {
       this.logger.warn('Contacto no encontrado para cancelación');
       return { status: 'contacto no encontrado' };
@@ -238,7 +238,7 @@ Acción requerida: Verificar que el cliente recibió acceso al producto y confir
     const buyer = data?.buyer;
     const telefono = this.extractPhone(buyer);
 
-    const contacto = await this.bitrixService.buscarContactoPorTelefono(telefono);
+    const contacto = await this.bitrixService.buscarContactoPorTelefonoOEmail(telefono);
     if (contacto) {
       const negociacion = await this.bitrixService.buscarNegociacionPorContacto(contacto.ID);
       if (negociacion) {
@@ -258,7 +258,7 @@ Acción requerida: Verificar que el cliente recibió acceso al producto y confir
     const buyer = data?.buyer;
     const telefono = this.extractPhone(buyer);
 
-    const contacto = await this.bitrixService.buscarContactoPorTelefono(telefono);
+    const contacto = await this.bitrixService.buscarContactoPorTelefonoOEmail(telefono);
     if (contacto) {
       const negociacion = await this.bitrixService.buscarNegociacionPorContacto(contacto.ID);
       if (negociacion) {
@@ -355,7 +355,7 @@ Acción requerida: Verificar que el cliente recibió acceso al producto y confir
     const subscriber = data?.subscription?.subscriber;
     const telefono = subscriber?.phone || '';
 
-    const contacto = await this.bitrixService.buscarContactoPorTelefono(telefono);
+    const contacto = await this.bitrixService.buscarContactoPorTelefonoOEmail(telefono);
     if (contacto) {
       const negociacion = await this.bitrixService.buscarNegociacionPorContacto(contacto.ID);
       if (negociacion) {
@@ -375,7 +375,7 @@ Acción requerida: Verificar que el cliente recibió acceso al producto y confir
     const subscriber = data?.subscription?.subscriber;
     const telefono = subscriber?.phone || '';
 
-    const contacto = await this.bitrixService.buscarContactoPorTelefono(telefono);
+    const contacto = await this.bitrixService.buscarContactoPorTelefonoOEmail(telefono);
     if (contacto) {
       const negociacion = await this.bitrixService.buscarNegociacionPorContacto(contacto.ID);
       if (negociacion) {
