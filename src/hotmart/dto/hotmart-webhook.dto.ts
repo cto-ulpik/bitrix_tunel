@@ -1,29 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 
-export class HotmartWebhookDto {
-  @ApiProperty({ description: 'ID del evento' })
-  id?: string;
-
-  @ApiProperty({ description: 'Tipo de evento' })
-  event?: string;
-
-  @ApiProperty({ description: 'Versión del webhook' })
-  version?: string;
-
-  @ApiProperty({ description: 'Fecha de creación' })
-  creation_date?: number;
-
-  @ApiProperty({ 
-    description: 'Token de seguridad de Hotmart',
-    required: false,
-    example: 'ktCAmqR5vpcqxdtWKSqhLA9EQON1NRc4662751-fa3b-493b-8204-13f8721091dc'
-  })
-  hottok?: string;
-
-  @ApiProperty({ description: 'Datos del evento' })
-  data?: HotmartEventData;
-}
-
+// Primero declaramos HotmartEventData
 export class HotmartEventData {
   // Información del producto
   product?: {
@@ -91,5 +68,30 @@ export class HotmartEventData {
     email?: string;
     value?: number;
   }>;
+}
+
+// Luego declaramos HotmartWebhookDto que usa HotmartEventData
+export class HotmartWebhookDto {
+  @ApiProperty({ description: 'ID del evento' })
+  id?: string;
+
+  @ApiProperty({ description: 'Tipo de evento' })
+  event?: string;
+
+  @ApiProperty({ description: 'Versión del webhook' })
+  version?: string;
+
+  @ApiProperty({ description: 'Fecha de creación' })
+  creation_date?: number;
+
+  @ApiProperty({ 
+    description: 'Token de seguridad de Hotmart',
+    required: false,
+    example: 'ktCAmqR5vpcqxdtWKSqhLA9EQON1NRc4662751-fa3b-493b-8204-13f8721091dc'
+  })
+  hottok?: string;
+
+  @ApiProperty({ description: 'Datos del evento' })
+  data?: HotmartEventData;
 }
 
