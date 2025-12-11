@@ -1,109 +1,97 @@
 import { Controller, Get, Query, Param } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery, ApiParam, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { AuditService } from '../services/audit.service';
 
-@ApiTags('Audit')
+@ApiTags('Auditoría')
 @Controller('audit')
 export class AuditController {
   constructor(private readonly auditService: AuditService) {}
 
-  @Get('events')
-  @ApiOperation({ summary: 'Obtener todos los eventos' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 100 })
-  @ApiQuery({ name: 'offset', required: false, type: Number, example: 0 })
-  @ApiResponse({ status: 200, description: 'Lista de eventos' })
-  async getAllEvents(
-    @Query('limit') limit: string = '100',
-    @Query('offset') offset: string = '0',
+  @Get('logs')
+  @ApiOperation({ summary: 'Obtener todos los logs de auditoría' })
+  @ApiQuery({ name: 'module', required: false, description: 'Filtrar por módulo (hotmart, jelou, bitrix)' })
+  @ApiQuery({ name: 'action', required: false, description: 'Filtrar por acción' })
+  @ApiQuery({ name: 'status', required: false, description: 'Filtrar por estado (success, error)' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Límite de resultados (default: 50)' })
+  @ApiQuery({ name: 'offset', required: false, description: 'Offset para paginación' })
+  @ApiResponse({ status: 200, description: 'Lista de logs con total' })
+  async getLogs(
+    @Query('module') module?: string,
+    @Query('action') action?: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
   ) {
-    return this.auditService.getAllEvents(parseInt(limit), parseInt(offset));
-  }
-
-  @Get('events/source/:source')
-  @ApiOperation({ summary: 'Obtener eventos por fuente (hotmart, jelou, bitrix)' })
-  @ApiParam({ name: 'source', example: 'hotmart' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 100 })
-  @ApiResponse({ status: 200, description: 'Lista de eventos filtrados por fuente' })
-  async getEventsBySource(
-    @Param('source') source: string,
-    @Query('limit') limit: string = '100',
-  ) {
-    return this.auditService.getEventsBySource(source, parseInt(limit));
-  }
-
-  @Get('events/type/:type')
-  @ApiOperation({ summary: 'Obtener eventos por tipo' })
-  @ApiParam({ name: 'type', example: 'contact_created' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 100 })
-  @ApiResponse({ status: 200, description: 'Lista de eventos filtrados por tipo' })
-  async getEventsByType(
-    @Param('type') type: string,
-    @Query('limit') limit: string = '100',
-  ) {
-    return this.auditService.getEventsByType(type, parseInt(limit));
-  }
-
-  @Get('events/contact/:contactId')
-  @ApiOperation({ summary: 'Obtener eventos de un contacto específico de Bitrix' })
-  @ApiParam({ name: 'contactId', example: '12345' })
-  @ApiResponse({ status: 200, description: 'Historial del contacto' })
-  async getEventsByContactId(@Param('contactId') contactId: string) {
-    return this.auditService.getEventsByContactId(contactId);
-  }
-
-  @Get('events/deal/:dealId')
-  @ApiOperation({ summary: 'Obtener eventos de una negociación específica de Bitrix' })
-  @ApiParam({ name: 'dealId', example: '67890' })
-  @ApiResponse({ status: 200, description: 'Historial de la negociación' })
-  async getEventsByDealId(@Param('dealId') dealId: string) {
-    return this.auditService.getEventsByDealId(dealId);
-  }
-
-  @Get('events/phone/:phone')
-  @ApiOperation({ summary: 'Obtener eventos de un cliente por teléfono' })
-  @ApiParam({ name: 'phone', example: '+593999999999' })
-  @ApiResponse({ status: 200, description: 'Historial del cliente por teléfono' })
-  async getEventsByPhone(@Param('phone') phone: string) {
-    return this.auditService.getEventsByPhone(phone);
-  }
-
-  @Get('events/failed')
-  @ApiOperation({ summary: 'Obtener eventos con errores' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 100 })
-  @ApiResponse({ status: 200, description: 'Lista de eventos fallidos' })
-  async getFailedEvents(@Query('limit') limit: string = '100') {
-    return this.auditService.getFailedEvents(parseInt(limit));
+    return this.auditService.findAll({
+      module,
+      action,
+      status,
+      limit: limit ? parseInt(limit.toString()) : 50,
+      offset: offset ? parseInt(offset.toString()) : 0,
+    });
   }
 
   @Get('stats')
-  @ApiOperation({ summary: 'Obtener estadísticas generales' })
-  @ApiResponse({
-    status: 200,
-    description: 'Estadísticas del sistema',
+  @ApiOperation({ summary: 'Obtener estadísticas de auditoría' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Estadísticas generales',
     schema: {
       example: {
-        total: 1000,
-        status: {
-          success: 950,
-          error: 30,
-          pending: 20,
-        },
-        by_source: [
-          { source: 'hotmart', count: 500 },
-          { source: 'jelou', count: 400 },
-          { source: 'bitrix', count: 100 },
+        total_actions: 150,
+        success_count: 145,
+        error_count: 5,
+        success_rate: '96.67%',
+        by_module: [
+          { module: 'hotmart', count: 80 },
+          { module: 'jelou', count: 50 },
+          { module: 'bitrix', count: 20 }
         ],
-        by_type: [
-          { event_type: 'webhook_received', count: 800 },
-          { event_type: 'contact_created', count: 150 },
-        ],
-        today: 50,
-        avg_processing_time_ms: 1234,
-      },
-    },
+        by_action: [
+          { action: 'crear_contacto', count: 50 },
+          { action: 'crear_negociacion', count: 50 },
+          { action: 'registrar_actividad', count: 50 }
+        ]
+      }
+    }
   })
   async getStats() {
     return this.auditService.getStats();
   }
-}
 
+  @Get('deal/:dealId')
+  @ApiOperation({ summary: 'Obtener logs por Deal ID de Bitrix' })
+  @ApiResponse({ status: 200, description: 'Logs del deal específico' })
+  async getLogsByDealId(@Param('dealId') dealId: string) {
+    const logs = await this.auditService.findByDealId(dealId);
+    return {
+      deal_id: dealId,
+      total: logs.length,
+      logs,
+    };
+  }
+
+  @Get('contact/:contactId')
+  @ApiOperation({ summary: 'Obtener logs por Contact ID de Bitrix' })
+  @ApiResponse({ status: 200, description: 'Logs del contacto específico' })
+  async getLogsByContactId(@Param('contactId') contactId: string) {
+    const logs = await this.auditService.findByContactId(contactId);
+    return {
+      contact_id: contactId,
+      total: logs.length,
+      logs,
+    };
+  }
+
+  @Get('phone/:phone')
+  @ApiOperation({ summary: 'Obtener logs por teléfono' })
+  @ApiResponse({ status: 200, description: 'Logs del teléfono específico' })
+  async getLogsByPhone(@Param('phone') phone: string) {
+    const logs = await this.auditService.findByPhone(phone);
+    return {
+      phone,
+      total: logs.length,
+      logs,
+    };
+  }
+}

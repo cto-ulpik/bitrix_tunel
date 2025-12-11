@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { EventLog } from './entities/event-log.entity';
+import { AuditLog } from './entities/audit-log.entity';
 import { AuditService } from './services/audit.service';
 import { AuditController } from './controllers/audit.controller';
 
@@ -8,16 +8,15 @@ import { AuditController } from './controllers/audit.controller';
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: 'data/bitrix_tunnel.db',
-      entities: [EventLog],
-      synchronize: true, // Auto-crear tablas (solo desarrollo, en producción usar migraciones)
+      database: 'database.sqlite',
+      entities: [AuditLog],
+      synchronize: true, // Solo para desarrollo, en producción usar migraciones
       logging: false,
     }),
-    TypeOrmModule.forFeature([EventLog]),
+    TypeOrmModule.forFeature([AuditLog]),
   ],
   controllers: [AuditController],
   providers: [AuditService],
-  exports: [AuditService, TypeOrmModule],
+  exports: [AuditService],
 })
 export class DatabaseModule {}
-

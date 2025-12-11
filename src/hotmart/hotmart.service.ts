@@ -132,21 +132,25 @@ export class HotmartService {
     this.logger.log(`Compra procesada exitosamente. Deal ID: ${dealId}`);
 
     // Registrar en la base de datos de auditoría
-    await this.auditService.logEvent({
-      event_type: 'purchase_completed',
-      source: 'hotmart',
-      source_event: webhook.event,
+    await this.auditService.log({
+      action: 'compra_procesada',
+      module: 'hotmart',
+      event_type: webhook.event,
       bitrix_contact_id: String(contactId),
       bitrix_deal_id: String(dealId),
-      customer_name: nombre,
-      customer_phone: telefono,
-      customer_email: email,
+      user_name: nombre,
+      user_phone: telefono,
+      user_email: email,
       product_name: productoNombre,
       amount: precio,
       currency: moneda,
-      transaction_id: purchase?.transaction || webhook.id,
+      webhook_id: webhook.id,
       status: 'success',
-      payload: webhook,
+      metadata: {
+        transaction: purchase?.transaction,
+        payment_method: purchase?.payment?.method,
+        payment_type: purchase?.payment?.type,
+      },
     });
 
     return {

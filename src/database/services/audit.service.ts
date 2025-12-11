@@ -1,26 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
-import { EventLog } from '../entities/event-log.entity';
+import { Repository, Between } from 'typeorm';
+import { AuditLog } from '../entities/audit-log.entity';
 
-export interface CreateEventLogDto {
-  event_type: string;
-  source: string;
-  source_event?: string;
+export interface CreateAuditLogDto {
+  action: string;
+  module: string;
+  event_type?: string;
   bitrix_contact_id?: string;
   bitrix_deal_id?: string;
   bitrix_activity_id?: string;
-  customer_name?: string;
-  customer_phone?: string;
-  customer_email?: string;
+  user_name?: string;
+  user_email?: string;
+  user_phone?: string;
   product_name?: string;
   amount?: number;
   currency?: string;
-  transaction_id?: string;
-  status: 'success' | 'error' | 'pending';
+  metadata?: any;
+  status?: string;
   error_message?: string;
-  payload?: any;
-  ip_address?: string;
+  source_ip?: string;
+  webhook_id?: string;
   processing_time_ms?: number;
 }
 
@@ -29,186 +29,198 @@ export class AuditService {
   private readonly logger = new Logger(AuditService.name);
 
   constructor(
-    @InjectRepository(EventLog)
-    private readonly eventLogRepository: Repository<EventLog>,
+    @InjectRepository(AuditLog)
+    private auditRepository: Repository<AuditLog>,
   ) {}
 
   /**
-   * Registrar un evento en la base de datos
+   * Registra una acción en el sistema
    */
-  async logEvent(data: CreateEventLogDto): Promise<EventLog> {
+  async log(data: CreateAuditLogDto): Promise<AuditLog> {
     try {
-      const eventLog = this.eventLogRepository.create({
+      const auditLog = this.auditRepository.create({
         ...data,
-        payload: data.payload ? JSON.stringify(data.payload) : undefined,
+        metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,
+        status: data.status || 'success',
       });
 
-      const saved = await this.eventLogRepository.save(eventLog);
-      this.logger.log(`Evento registrado: ${data.event_type} [${data.source}] - ID: ${saved.id}`);
+      const saved = await this.auditRepository.save(auditLog);
+      const savedId = Array.isArray(saved) ? saved[0]?.id : saved.id;
+      this.logger.log(`[AUDIT] ${data.module} - ${data.action} - ID: ${savedId}`);
       
-      return saved;
+      return Array.isArray(saved) ? saved[0] : saved;
     } catch (error) {
-      this.logger.error(`Error registrando evento: ${error.message}`, error.stack);
+      this.logger.error(`Error guardando audit log: ${error.message}`);
       throw error;
     }
   }
 
   /**
-   * Obtener todos los eventos
+   * Registra una acción exitosa con datos de Bitrix
    */
-  async getAllEvents(limit: number = 100, offset: number = 0): Promise<EventLog[]> {
-    return this.eventLogRepository.find({
-      order: { timestamp: 'DESC' },
-      take: limit,
-      skip: offset,
+  async logBitrixAction(
+    action: string,
+    module: string,
+    contactId?: string,
+    dealId?: string,
+    activityId?: string,
+    additionalData?: Partial<CreateAuditLogDto>,
+  ): Promise<AuditLog> {
+    return this.log({
+      action,
+      module,
+      bitrix_contact_id: contactId,
+      bitrix_deal_id: dealId,
+      bitrix_activity_id: activityId,
+      status: 'success',
+      ...additionalData,
     });
   }
 
   /**
-   * Obtener eventos por fuente (hotmart, jelou, bitrix)
+   * Registra un error
    */
-  async getEventsBySource(source: string, limit: number = 100): Promise<EventLog[]> {
-    return this.eventLogRepository.find({
-      where: { source },
-      order: { timestamp: 'DESC' },
-      take: limit,
+  async logError(
+    action: string,
+    module: string,
+    error: string,
+    additionalData?: Partial<CreateAuditLogDto>,
+  ): Promise<AuditLog> {
+    return this.log({
+      action,
+      module,
+      status: 'error',
+      error_message: error,
+      ...additionalData,
     });
   }
 
   /**
-   * Obtener eventos por tipo
+   * Obtiene todos los logs con filtros opcionales
    */
-  async getEventsByType(event_type: string, limit: number = 100): Promise<EventLog[]> {
-    return this.eventLogRepository.find({
-      where: { event_type },
-      order: { timestamp: 'DESC' },
-      take: limit,
-    });
+  async findAll(options?: {
+    module?: string;
+    action?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+    startDate?: Date;
+    endDate?: Date;
+  }): Promise<{ logs: AuditLog[]; total: number }> {
+    const query = this.auditRepository.createQueryBuilder('log');
+
+    if (options?.module) {
+      query.andWhere('log.module = :module', { module: options.module });
+    }
+
+    if (options?.action) {
+      query.andWhere('log.action = :action', { action: options.action });
+    }
+
+    if (options?.status) {
+      query.andWhere('log.status = :status', { status: options.status });
+    }
+
+    if (options?.startDate && options?.endDate) {
+      query.andWhere('log.timestamp BETWEEN :startDate AND :endDate', {
+        startDate: options.startDate,
+        endDate: options.endDate,
+      });
+    }
+
+    const total = await query.getCount();
+
+    query
+      .orderBy('log.timestamp', 'DESC')
+      .skip(options?.offset || 0)
+      .take(options?.limit || 50);
+
+    const logs = await query.getMany();
+
+    return { logs, total };
   }
 
   /**
-   * Obtener eventos por ID de contacto de Bitrix
+   * Obtiene logs por Deal ID de Bitrix
    */
-  async getEventsByContactId(contactId: string): Promise<EventLog[]> {
-    return this.eventLogRepository.find({
-      where: { bitrix_contact_id: contactId },
-      order: { timestamp: 'DESC' },
-    });
-  }
-
-  /**
-   * Obtener eventos por ID de negociación de Bitrix
-   */
-  async getEventsByDealId(dealId: string): Promise<EventLog[]> {
-    return this.eventLogRepository.find({
+  async findByDealId(dealId: string): Promise<AuditLog[]> {
+    return this.auditRepository.find({
       where: { bitrix_deal_id: dealId },
       order: { timestamp: 'DESC' },
     });
   }
 
   /**
-   * Obtener eventos por teléfono del cliente
+   * Obtiene logs por Contact ID de Bitrix
    */
-  async getEventsByPhone(phone: string): Promise<EventLog[]> {
-    return this.eventLogRepository.find({
-      where: { customer_phone: phone },
+  async findByContactId(contactId: string): Promise<AuditLog[]> {
+    return this.auditRepository.find({
+      where: { bitrix_contact_id: contactId },
       order: { timestamp: 'DESC' },
     });
   }
 
   /**
-   * Obtener eventos en un rango de fechas
+   * Obtiene logs por teléfono
    */
-  async getEventsByDateRange(startDate: Date, endDate: Date): Promise<EventLog[]> {
-    return this.eventLogRepository.find({
-      where: {
-        timestamp: Between(startDate, endDate),
-      },
+  async findByPhone(phone: string): Promise<AuditLog[]> {
+    return this.auditRepository.find({
+      where: { user_phone: phone },
       order: { timestamp: 'DESC' },
     });
   }
 
   /**
-   * Obtener eventos con errores
+   * Obtiene estadísticas
    */
-  async getFailedEvents(limit: number = 100): Promise<EventLog[]> {
-    return this.eventLogRepository.find({
-      where: { status: 'error' },
-      order: { timestamp: 'DESC' },
-      take: limit,
-    });
-  }
+  async getStats(startDate?: Date, endDate?: Date): Promise<any> {
+    const query = this.auditRepository.createQueryBuilder('log');
 
-  /**
-   * Obtener estadísticas
-   */
-  async getStats(): Promise<any> {
-    const total = await this.eventLogRepository.count();
-    const success = await this.eventLogRepository.count({ where: { status: 'success' } });
-    const error = await this.eventLogRepository.count({ where: { status: 'error' } });
-    const pending = await this.eventLogRepository.count({ where: { status: 'pending' } });
+    if (startDate && endDate) {
+      query.where('log.timestamp BETWEEN :startDate AND :endDate', {
+        startDate,
+        endDate,
+      });
+    }
 
-    const bySource = await this.eventLogRepository
-      .createQueryBuilder('event')
-      .select('event.source')
-      .addSelect('COUNT(*)', 'count')
-      .groupBy('event.source')
-      .getRawMany();
-
-    const byType = await this.eventLogRepository
-      .createQueryBuilder('event')
-      .select('event.event_type')
-      .addSelect('COUNT(*)', 'count')
-      .groupBy('event.event_type')
-      .orderBy('count', 'DESC')
-      .limit(10)
-      .getRawMany();
-
-    // Eventos de hoy
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayCount = await this.eventLogRepository.count({
-      where: {
-        timestamp: MoreThanOrEqual(today),
-      },
-    });
-
-    // Promedio de tiempo de procesamiento
-    const avgProcessingTime = await this.eventLogRepository
-      .createQueryBuilder('event')
-      .select('AVG(event.processing_time_ms)', 'avg')
-      .where('event.processing_time_ms IS NOT NULL')
-      .getRawOne();
+    const [
+      totalActions,
+      successCount,
+      errorCount,
+      byModule,
+      byAction,
+    ] = await Promise.all([
+      query.getCount(),
+      query.clone().andWhere('log.status = :status', { status: 'success' }).getCount(),
+      query.clone().andWhere('log.status = :status', { status: 'error' }).getCount(),
+      query.clone().select('log.module', 'module').addSelect('COUNT(*)', 'count').groupBy('log.module').getRawMany(),
+      query.clone().select('log.action', 'action').addSelect('COUNT(*)', 'count').groupBy('log.action').getRawMany(),
+    ]);
 
     return {
-      total,
-      status: {
-        success,
-        error,
-        pending,
-      },
-      by_source: bySource,
-      by_type: byType,
-      today: todayCount,
-      avg_processing_time_ms: avgProcessingTime?.avg || 0,
+      total_actions: totalActions,
+      success_count: successCount,
+      error_count: errorCount,
+      success_rate: totalActions > 0 ? ((successCount / totalActions) * 100).toFixed(2) + '%' : '0%',
+      by_module: byModule,
+      by_action: byAction,
     };
   }
 
   /**
-   * Limpiar eventos antiguos (más de X días)
+   * Limpia logs antiguos (opcional, para mantenimiento)
    */
-  async cleanOldEvents(daysToKeep: number = 90): Promise<number> {
+  async cleanOldLogs(daysToKeep: number = 90): Promise<number> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-    const result = await this.eventLogRepository
+    const result = await this.auditRepository
       .createQueryBuilder()
       .delete()
       .where('timestamp < :cutoffDate', { cutoffDate })
       .execute();
 
-    this.logger.log(`Limpiados ${result.affected} eventos antiguos (más de ${daysToKeep} días)`);
+    this.logger.log(`Limpieza de logs: ${result.affected} registros eliminados`);
     return result.affected || 0;
   }
 }
-
