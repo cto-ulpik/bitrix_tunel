@@ -96,33 +96,41 @@ export class HotmartService {
     const precio = purchase?.price?.value || 0;
     const moneda = purchase?.price?.currency_code || 'USD';
 
-    // Buscar o crear contacto en Bitrix
-    let contacto = await this.bitrixService.buscarContactoPorTelefono(telefono);
-    let contactId = contacto?.ID;
+    // NUEVA LÓGICA: Buscar contacto por nombre Y email
+    this.logger.log(`Buscando contacto: Nombre="${nombre}", Email="${email}"`);
+    
+    let contacto = await this.bitrixService.buscarContactoPorNombreYEmail(nombre, email);
+    let contactId: number | null = null;
 
-    if (!contactId && email) {
-      // Si no existe por teléfono, buscar por email (puedes agregar este método en BitrixService)
-      contactId = await this.bitrixService.crearContacto(nombre, telefono);
-    } else if (!contactId) {
-      contactId = await this.bitrixService.crearContacto(nombre, telefono);
+    if (contacto) {
+      contactId = parseInt(contacto.ID);
+      this.logger.log(`✅ Contacto encontrado: ID ${contactId}`);
+    } else {
+      this.logger.log(`❌ No se encontró contacto con nombre "${nombre}" y email "${email}"`);
+      this.logger.log('Se creará el deal SIN contacto vinculado (campo vacío)');
     }
 
-    // Buscar negociación existente (puedes usar un embudo específico para Hotmart)
-    const negociacionExistente = await this.bitrixService.buscarNegociacionPorContacto(contactId);
-
+    // Buscar negociación existente solo si hay contacto
     let dealId: number;
+    let negociacionExistente: any = null;
 
-    if (negociacionExistente) {
+    if (contactId) {
+      negociacionExistente = await this.bitrixService.buscarNegociacionPorContacto(contactId);
+    }
+
+    if (negociacionExistente?.ID) {
       dealId = negociacionExistente.ID;
+      this.logger.log(`Usando negociación existente: Deal ID ${dealId}`);
     } else {
-      // Crear nueva negociación con información de la compra
+      // Crear nueva negociación (con o sin contacto)
       dealId = await this.crearNegociacionHotmart(
-        contactId,
+        contactId, // Puede ser null si no se encontró contacto
         nombre,
         productoNombre,
         precio,
         moneda,
       );
+      this.logger.log(`✅ Nueva negociación creada: Deal ID ${dealId}, ContactID: ${contactId || 'VACÍO'}`);
     }
 
     // Registrar actividad con detalles de la compra
@@ -316,28 +324,35 @@ Acción requerida: Verificar que el cliente recibió acceso al producto y confir
    * Crea una negociación específica para Hotmart
    */
   private async crearNegociacionHotmart(
-    contactId: number,
+    contactId: number | null,
     nombre: string,
     producto: string,
     precio: number,
     moneda: string,
   ): Promise<number> {
-    // Aquí puedes personalizar el embudo y etapa para Hotmart
-    // Por ahora uso valores genéricos, pero deberías ajustarlos según tu configuración de Bitrix
     const axios = require('axios');
     
     const dealAdd = `https://bitrix.elsagrario.fin.ec/rest/138/wswyvle82l8ajlut/crm.deal.add.json`;
     
+    const fields: any = {
+      TITLE: `Hotmart: ${producto} - ${nombre}`,
+      OPPORTUNITY: precio,
+      CURRENCY_ID: moneda,
+      // Embudo y etapa específicos de Hotmart
+      CATEGORY_ID: '44', // ID del embudo de Hotmart
+      STAGE_ID: 'C44:UC_QHQCN9', // Etapa específica
+    };
+
+    // Solo agregar contacto si existe
+    if (contactId) {
+      fields.CONTACT_ID = contactId;
+      this.logger.log(`Creando deal con contacto vinculado: ${contactId}`);
+    } else {
+      this.logger.log('Creando deal SIN contacto vinculado (campo vacío)');
+    }
+    
     const { data } = await axios.post(dealAdd, {
-      fields: {
-        TITLE: `Hotmart: ${producto} - ${nombre}`,
-        CONTACT_ID: contactId,
-        OPPORTUNITY: precio,
-        CURRENCY_ID: moneda,
-        // Ajusta estos valores según tu configuración de Bitrix
-        // CATEGORY_ID: '7', // ID del embudo de Hotmart (crea uno específico)
-        // STAGE_ID: 'C7:NEW', // Etapa inicial
-      },
+      fields,
     });
 
     return data.result;

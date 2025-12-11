@@ -86,6 +86,43 @@ export class BitrixService {
     return data.result[0];
   }
 
+  /**
+   * Busca un contacto por nombre Y email (ambos deben coincidir)
+   */
+  async buscarContactoPorNombreYEmail(nombre: string, email: string) {
+    try {
+      if (!nombre || !email) {
+        return null;
+      }
+
+      const { data } = await axios.post(this.contactList, {
+        filter: { 
+          NAME: nombre,
+          EMAIL: email,
+        },
+        select: ['ID', 'NAME', 'EMAIL', 'PHONE'],
+      });
+
+      // Verificar que ambos coincidan exactamente
+      if (data.result && data.result.length > 0) {
+        const contacto = data.result[0];
+        const nombreCoincide = contacto.NAME?.toLowerCase().trim() === nombre.toLowerCase().trim();
+        const emailCoincide = contacto.EMAIL?.[0]?.VALUE?.toLowerCase().trim() === email.toLowerCase().trim();
+        
+        if (nombreCoincide && emailCoincide) {
+          console.log(`Contacto encontrado: ID ${contacto.ID}, Nombre: ${contacto.NAME}, Email: ${email}`);
+          return contacto;
+        }
+      }
+      
+      console.log(`No se encontró contacto con nombre "${nombre}" y email "${email}"`);
+      return null;
+    } catch (error) {
+      console.error('Error buscando contacto por nombre y email:', error.message);
+      return null;
+    }
+  }
+
   async registrarActividad(dealId: number, mensaje: string, tipo: string) {
     await axios.post(this.activityAdd, {
       fields: {
