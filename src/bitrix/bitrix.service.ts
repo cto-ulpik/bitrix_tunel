@@ -85,11 +85,27 @@ export class BitrixService {
     });
     return res.result; // lead ID
   }
-  async buscarContactoPorTelefono(telefono: string) {
-    const { data } = await axios.post(this.contactList, {
-      filter: { PHONE: telefono },
-    });
-    return data.result[0];
+  async buscarContactoPorTelefonoOEmail(campo: string) {
+    try {
+      // 1) Buscar por teléfono
+      const phoneResponse = await axios.post(this.contactList, {
+        filter: { PHONE: campo },
+      });
+  
+      if (phoneResponse?.data?.result?.length > 0) {
+        return phoneResponse.data.result[0];
+      }
+  
+      // 2) Buscar por email
+      const emailResponse = await axios.post(this.contactList, {
+        filter: { EMAIL: campo },
+      });
+  
+      return emailResponse?.data?.result?.[0] ?? null;
+    } catch (error) {
+      console.error("❌ Error buscando contacto:", error?.response?.data || error);
+      return null;
+    }
   }
 
   /**
@@ -214,7 +230,7 @@ export class BitrixService {
     mensaje: string;
   }) {
     // 1. Buscar contacto
-    let contacto = await this.buscarContactoPorTelefono(data.telefono);
+    let contacto = await this.buscarContactoPorTelefonoOEmail(data.telefono);
     let contactId = contacto?.ID;
 
     if (!contactId) {

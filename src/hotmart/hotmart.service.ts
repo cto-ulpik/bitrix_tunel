@@ -70,7 +70,6 @@ export class HotmartService {
     pipeline: Pipelines | null,
   ): string | null {
     if (!pipeline) return null;
-    
     return this.STAGE_POR_PIPELINE_CANCELED[pipeline] ?? null;
   }
 
