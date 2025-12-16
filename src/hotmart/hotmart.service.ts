@@ -44,9 +44,9 @@ export class HotmartService {
 
   // Pipeline -> Stage cuando la compra es CANCELADA
   private readonly STAGE_POR_PIPELINE_CANCELED: Record<Pipelines, string> = {
-    [Pipelines.LEGAL]: 'C3:UC_LW0KDE', 
+    [Pipelines.LEGAL]: 'C3:UC_LW0KDE',
     [Pipelines.EDUCACION_WEBINAR]: 'C9:10',
-    [Pipelines.COMUNIDAD]: 'C44:UC_Z9UPZW', 
+    [Pipelines.COMUNIDAD]: 'C44:UC_Z9UPZW',
     [Pipelines.EDUCACION_VENTA_DIRECTA]: 'C34:UC_ECXTVG',
   };
 
@@ -91,8 +91,9 @@ export class HotmartService {
         case 'PURCHASE_CANCELED':
         case 'PURCHASE_REFUNDED':
         case 'PURCHASE_CHARGEBACK':
+        case 'SUBSCRIPTION_CANCELLATION':
           return await this.handlePurchaseRejected(webhook);
-
+        /* 
         case 'PURCHASE_DELAYED':
         case 'PURCHASE_PROTEST':
           return await this.handlePurchaseDelayed(webhook);
@@ -110,7 +111,7 @@ export class HotmartService {
         // EVENTOS DE CLUB
         case 'SWITCH_PLAN':
           return await this.handleSwitchPlan(webhook);
-
+ */
         // OTROS EVENTOS
         default:
           this.logger.warn(`Evento no manejado: ${event}`);
@@ -389,44 +390,46 @@ Acción requerida: Verificar que el cliente recibió acceso al producto y confir
   }
 
   private async crearTareaSeguimientoPostCompraRechazada(params: {
-  dealId: number;
-  nombre: string;
-  productoNombre: string;
-  moneda: string;
-  precio: number;
-  email: string;
-  telefono: string;
-  diasLimite?: number;  // default 3
-  horaLimite?: string;  // default "18:00:00"
-}): Promise<string | null> {
-  const {
-    dealId,
-    nombre,
-    productoNombre,
-    moneda,
-    precio,
-    email,
-    telefono,
-    diasLimite = 3,
-    horaLimite = '18:00:00',
-  } = params;
+    dealId: number;
+    nombre: string;
+    productoNombre: string;
+    moneda: string;
+    precio: number;
+    email: string;
+    telefono: string;
+    diasLimite?: number; // default 3
+    horaLimite?: string; // default "18:00:00"
+  }): Promise<string | null> {
+    const {
+      dealId,
+      nombre,
+      productoNombre,
+      moneda,
+      precio,
+      email,
+      telefono,
+      diasLimite = 3,
+      horaLimite = '18:00:00',
+    } = params;
 
-  try {
-    const ahora = new Date();
-    const fechaLimite = new Date(
-      ahora.getTime() + diasLimite * 24 * 60 * 60 * 1000,
-    );
+    try {
+      const ahora = new Date();
+      const fechaLimite = new Date(
+        ahora.getTime() + diasLimite * 24 * 60 * 60 * 1000,
+      );
 
-    const year = fechaLimite.getFullYear();
-    const month = String(fechaLimite.getMonth() + 1).padStart(2, '0');
-    const day = String(fechaLimite.getDate()).padStart(2, '0');
-    const fechaFormateada = `${year}-${month}-${day} ${horaLimite}`;
+      const year = fechaLimite.getFullYear();
+      const month = String(fechaLimite.getMonth() + 1).padStart(2, '0');
+      const day = String(fechaLimite.getDate()).padStart(2, '0');
+      const fechaFormateada = `${year}-${month}-${day} ${horaLimite}`;
 
-    this.logger.log(`📅 Fecha actual: ${ahora.toISOString()}`);
-    this.logger.log(`📅 Fecha límite tarea (+${diasLimite} días): ${fechaFormateada}`);
+      this.logger.log(`📅 Fecha actual: ${ahora.toISOString()}`);
+      this.logger.log(
+        `📅 Fecha límite tarea (+${diasLimite} días): ${fechaFormateada}`,
+      );
 
-    // Descripción personalizada para compras RECHAZADAS
-    const descripcion = `Cliente: ${nombre}
+      // Descripción personalizada para compras RECHAZADAS
+      const descripcion = `Cliente: ${nombre}
 Producto: ${productoNombre}
 Monto: ${moneda} ${precio}
 Email: ${email}
@@ -436,25 +439,26 @@ Estado de compra: RECHAZADA
 
 Acción requerida: Verificar la razón del rechazo y seguir el flujo de recuperación o reintento de compra.`;
 
-    // Crear tarea de seguimiento con descripción personalizada para "rechazada"
-    const taskId = await this.bitrixService.crearTareaParaNegociacion(
-      dealId,
-      `Seguimiento post-rechazo: ${nombre}`,
-      descripcion,
-      fechaFormateada,
-    );
+      // Crear tarea de seguimiento con descripción personalizada para "rechazada"
+      const taskId = await this.bitrixService.crearTareaParaNegociacion(
+        dealId,
+        `Seguimiento post-rechazo: ${nombre}`,
+        descripcion,
+        fechaFormateada,
+      );
 
-    this.logger.log(`✅ Tarea de seguimiento creada para RECHAZO. Task ID: ${taskId}`);
-    return taskId;
-  } catch (error: any) {
-    this.logger.error(
-      `❌ Error creando tarea automática (rechazo): ${error?.message}`,
-      error?.stack,
-    );
-    return null;  // No rompe el flujo
+      this.logger.log(
+        `✅ Tarea de seguimiento creada para RECHAZO. Task ID: ${taskId}`,
+      );
+      return taskId;
+    } catch (error: any) {
+      this.logger.error(
+        `❌ Error creando tarea automática (rechazo): ${error?.message}`,
+        error?.stack,
+      );
+      return null; // No rompe el flujo
+    }
   }
-}
-
 
   /**
    * Maneja compras canceladas/reembolsadas/chargeback
@@ -590,14 +594,14 @@ Acción requerida: Verificar la razón del rechazo y seguir el flujo de recupera
       amount,
     });
     await this.crearTareaSeguimientoPostCompraRechazada({
-  dealId,
-  nombre,
-  productoNombre,
-  moneda,
-  precio,
-  email,
-  telefono,
-});
+      dealId,
+      nombre,
+      productoNombre,
+      moneda,
+      precio,
+      email,
+      telefono,
+    });
     this.logger.log(`✅ Compra RECHAZADA procesada. Deal ID: ${dealId}`);
 
     // Registrar actividad (mensaje específico)
@@ -655,7 +659,7 @@ Transacción: ${purchase?.transaction || 'N/A'}.`;
     const telefono = this.extractPhone(buyer);
 
     const contacto =
-      await this.bitrixService.buscarContactoPorTelefono(telefono);
+      await this.bitrixService.buscarContactoPorEmailOTelefono(telefono);
     if (contacto) {
       const negociacion = await this.bitrixService.buscarNegociacionPorContacto(
         contacto.ID,
@@ -682,7 +686,7 @@ Transacción: ${purchase?.transaction || 'N/A'}.`;
     const telefono = this.extractPhone(buyer);
 
     const contacto =
-      await this.bitrixService.buscarContactoPorTelefono(telefono);
+      await this.bitrixService.buscarContactoPorEmailOTelefono(telefono);
     if (contacto) {
       const negociacion = await this.bitrixService.buscarNegociacionPorContacto(
         contacto.ID,
@@ -796,7 +800,7 @@ Transacción: ${purchase?.transaction || 'N/A'}.`;
     const telefono = subscriber?.phone || '';
 
     const contacto =
-      await this.bitrixService.buscarContactoPorTelefono(telefono);
+      await this.bitrixService.buscarContactoPorEmailOTelefono(telefono);
     if (contacto) {
       const negociacion = await this.bitrixService.buscarNegociacionPorContacto(
         contacto.ID,
@@ -823,7 +827,7 @@ Transacción: ${purchase?.transaction || 'N/A'}.`;
     const telefono = subscriber?.phone || '';
 
     const contacto =
-      await this.bitrixService.buscarContactoPorTelefono(telefono);
+      await this.bitrixService.buscarContactoPorEmailOTelefono(telefono);
     if (contacto) {
       const negociacion = await this.bitrixService.buscarNegociacionPorContacto(
         contacto.ID,
