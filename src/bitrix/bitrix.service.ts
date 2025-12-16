@@ -4,42 +4,28 @@ import { JelouService } from 'src/jelou/jelou.service';
 
 @Injectable()
 export class BitrixService {
-
-
   constructor(
     //me da que es una dependencia circular agregar forwordRef
-     @Inject(forwardRef(() => JelouService))
+    @Inject(forwardRef(() => JelouService))
     private readonly jelouService: JelouService,
-  ){
-
-  }
+  ) {}
   // SOLO ULPIK.BITRIX24.ES
   private readonly apiUrl = 'https://ulpik.bitrix24.es/rest/82772';
   private readonly webhookToken = 'kwsuzlaj934sqy9a'; // Token con permisos completos
-  
+
   // Endpoints de CRM
-  private readonly leadAdd =
-    `${this.apiUrl}/${this.webhookToken}/crm.lead.add.json`;
-  private readonly activityAdd =
-    `${this.apiUrl}/${this.webhookToken}/crm.activity.add.json`;
-  private readonly dealUpdate =
-    `${this.apiUrl}/${this.webhookToken}/crm.deal.update.json`;
-  private readonly contactList =
-    `${this.apiUrl}/${this.webhookToken}/crm.contact.list.json`;
-  private readonly contactAdd =
-    `${this.apiUrl}/${this.webhookToken}/crm.contact.add.json`;
-  private readonly dealAdd =
-    `${this.apiUrl}/${this.webhookToken}/crm.deal.add.json`;
-  private readonly dealList =
-    `${this.apiUrl}/${this.webhookToken}/crm.deal.list.json`;
-  
+  private readonly leadAdd = `${this.apiUrl}/${this.webhookToken}/crm.lead.add.json`;
+  private readonly activityAdd = `${this.apiUrl}/${this.webhookToken}/crm.activity.add.json`;
+  private readonly dealUpdate = `${this.apiUrl}/${this.webhookToken}/crm.deal.update.json`;
+  private readonly contactList = `${this.apiUrl}/${this.webhookToken}/crm.contact.list.json`;
+  private readonly contactAdd = `${this.apiUrl}/${this.webhookToken}/crm.contact.add.json`;
+  private readonly dealAdd = `${this.apiUrl}/${this.webhookToken}/crm.deal.add.json`;
+  private readonly dealList = `${this.apiUrl}/${this.webhookToken}/crm.deal.list.json`;
+
   // Endpoints de tareas
-  private readonly taskAdd =
-    `${this.apiUrl}/${this.webhookToken}/tasks.task.add.json`;
-  private readonly taskList =
-    `${this.apiUrl}/${this.webhookToken}/tasks.task.list.json`;
-  private readonly taskGet =
-    `${this.apiUrl}/${this.webhookToken}/tasks.task.get.json`;
+  private readonly taskAdd = `${this.apiUrl}/${this.webhookToken}/tasks.task.add.json`;
+  private readonly taskList = `${this.apiUrl}/${this.webhookToken}/tasks.task.list.json`;
+  private readonly taskGet = `${this.apiUrl}/${this.webhookToken}/tasks.task.get.json`;
 
   async buscarLeadPorTelefono(telefono: string) {
     const { data } = await axios.post(this.contactList, {
@@ -58,15 +44,34 @@ export class BitrixService {
     return data.result;
   }
 
-  async buscarNegociacionPorContacto(contactId: number) {
+  async buscarNegociacionPorContacto(
+    contactId: number,
+    pipeline: string = '10', // ej: 'C44', 'C12'
+  ) {
     const { data } = await axios.post(this.dealList, {
       filter: {
         CONTACT_ID: contactId,
-        CATEGORY_ID: 6, // embudo Jelou
       },
-      order: { ID: 'DESC' },
+      order: { ID: 'DESC' }, // más reciente primero
     });
-    return data.result[0]; // la negociación más reciente
+
+    const deals = data.result || [];
+
+    console.log(
+      `Negociaciones encontradas para contacto ${contactId}: ${deals.length}`,
+    );
+
+    // ✅ FILTRAR por pipeline usando STAGE_ID
+    const dealDelPipeline = deals.find((deal: any) =>
+      deal.STAGE_ID?.startsWith(`${pipeline}:`),
+    );
+
+    console.log(
+      `Negociación encontrada para pipeline ${pipeline}:`,
+      dealDelPipeline ? dealDelPipeline.ID : 'NINGUNA',
+    );
+
+    return dealDelPipeline || null;
   }
 
   async crearLead(data: { nombre: string; telefono: string }) {
@@ -97,14 +102,16 @@ export class BitrixService {
       }
 
       const { data } = await axios.post(this.contactList, {
-        filter: { 
+        filter: {
           EMAIL: email,
         },
         select: ['ID', 'NAME', 'EMAIL', 'PHONE'],
       });
 
       if (data.result && data.result.length > 0) {
-        console.log(`✅ Contacto encontrado por email "${email}": ID ${data.result[0].ID}`);
+        console.log(
+          `✅ Contacto encontrado por email "${email}": ID ${data.result[0].ID}`,
+        );
         return data.result[0];
       }
 
@@ -119,36 +126,70 @@ export class BitrixService {
   /**
    * Busca un contacto por nombre Y email (ambos deben coincidir)
    */
-  async buscarContactoPorNombreYEmail(nombre: string, email: string) {
+  private normalizarEmail(email: string) {
+    return (email || '').trim().toLowerCase();
+  }
+
+  private normalizarTelefono(tel: string) {
+    // deja solo dígitos (ej: +593 99-999-9999 => 593999999999)
+    return (tel || '').replace(/\D/g, '');
+  }
+
+  async buscarContactoPorEmailOTelefono(email?: string, telefono?: string) {
     try {
-      if (!nombre || !email) {
-        return null;
-      }
+      const emailN = this.normalizarEmail(email || '');
+      const telN = this.normalizarTelefono(telefono || '');
 
-      const { data } = await axios.post(this.contactList, {
-        filter: { 
-          NAME: nombre,
-          EMAIL: email,
-        },
-        select: ['ID', 'NAME', 'EMAIL', 'PHONE'],
-      });
+      if (!emailN && !telN) return null;
 
-      // Verificar que ambos coincidan exactamente
-      if (data.result && data.result.length > 0) {
-        const contacto = data.result[0];
-        const nombreCoincide = contacto.NAME?.toLowerCase().trim() === nombre.toLowerCase().trim();
-        const emailCoincide = contacto.EMAIL?.[0]?.VALUE?.toLowerCase().trim() === email.toLowerCase().trim();
-        
-        if (nombreCoincide && emailCoincide) {
-          console.log(`Contacto encontrado: ID ${contacto.ID}, Nombre: ${contacto.NAME}, Email: ${email}`);
-          return contacto;
+      const select = ['ID', 'NAME', 'EMAIL', 'PHONE'];
+
+      // 1) Buscar por EMAIL (si viene)
+      if (emailN) {
+        const { data } = await axios.post(this.contactList, {
+          filter: { EMAIL: emailN },
+          select,
+        });
+
+        const result = data?.result || [];
+        if (result.length) {
+          // elegir match exacto por email si existe
+          const exacto = result.find((c: any) =>
+            (c.EMAIL || []).some(
+              (e: any) => this.normalizarEmail(e?.VALUE) === emailN,
+            ),
+          );
+          return exacto || result[0];
         }
       }
-      
-      console.log(`No se encontró contacto con nombre "${nombre}" y email "${email}"`);
+
+      // 2) Buscar por TELÉFONO (si viene)
+      if (telN) {
+        const { data } = await axios.post(this.contactList, {
+          // Bitrix suele matchear por VALUE, pero con filter PHONE funciona en muchos casos
+          filter: { PHONE: telN },
+          select,
+        });
+
+        const result = data?.result || [];
+        if (result.length) {
+          // elegir match exacto por teléfono si existe
+          const exacto = result.find((c: any) =>
+            (c.PHONE || []).some(
+              (p: any) => this.normalizarTelefono(p?.VALUE) === telN,
+            ),
+          );
+          return exacto || result[0];
+        }
+      }
+
       return null;
-    } catch (error) {
-      console.error('Error buscando contacto por nombre y email:', error.message);
+    } catch (error: any) {
+      const msg = error?.response?.data
+        ? JSON.stringify(error.response.data)
+        : error?.message;
+
+      console.error('Error buscando contacto por email/teléfono:', msg);
       return null;
     }
   }
@@ -236,7 +277,7 @@ export class BitrixService {
     console.log(`Teléfono: ${telefono}`);
 
     // Enviar a Jelou (aquí reemplaza por tu endpoint real)
-  const sms = await  this.jelouService.sendText(telefono, mensaje);
+    const sms = await this.jelouService.sendText(telefono, mensaje);
     console.log(`Respuesta de Jelou: ${JSON.stringify(sms)}`);
     // Registrar actividad
     await axios.post(this.activityAdd, {
@@ -250,9 +291,6 @@ export class BitrixService {
         OWNER_TYPE_ID: 2,
       },
     });
-
-   
-
   }
 
   async buscarNegociacionPorID(id: string) {
@@ -275,8 +313,8 @@ export class BitrixService {
       select: ['PHONE'], // para traer solo lo necesario
     });
     console.log(`Datos del contacto: ${JSON.stringify(data)}`);
-   const phone = data?.result?.[0]?.PHONE?.[0]?.VALUE ?? '';
-return phone; // "+12343233"
+    const phone = data?.result?.[0]?.PHONE?.[0]?.VALUE ?? '';
+    return phone; // "+12343233"
   }
 
   /**
@@ -334,7 +372,9 @@ return phone; // "+12343233"
 
       if (data.error) {
         console.error('Error de Bitrix al crear tarea:', data.error);
-        throw new Error(`Error de Bitrix: ${data.error_description || data.error}`);
+        throw new Error(
+          `Error de Bitrix: ${data.error_description || data.error}`,
+        );
       }
 
       console.log('Tarea creada exitosamente. ID:', data.result.task.id);
@@ -448,10 +488,14 @@ return phone; // "+12343233"
 
       if (data.error) {
         console.error('Error de Bitrix al crear deal:', data.error);
-        throw new Error(`Error de Bitrix: ${data.error_description || data.error}`);
+        throw new Error(
+          `Error de Bitrix: ${data.error_description || data.error}`,
+        );
       }
 
-      console.log(`✅ Deal creado: ID ${data.result}, Embudo: 44, Etapa: C44:UC_QHQCN9`);
+      console.log(
+        `✅ Deal creado: ID ${data.result}, Embudo: 44, Etapa: C44:UC_QHQCN9`,
+      );
       return data.result;
     } catch (error) {
       console.error('Error creando deal Hotmart:', error.message);
@@ -481,9 +525,13 @@ return phone; // "+12343233"
       // Solo agregar contacto si existe
       if (contactId) {
         fields.CONTACT_ID = contactId;
-        console.log(`Creando deal de cancelación con contacto vinculado: ${contactId}`);
+        console.log(
+          `Creando deal de cancelación con contacto vinculado: ${contactId}`,
+        );
       } else {
-        console.log('Creando deal de cancelación SIN contacto vinculado (campo vacío)');
+        console.log(
+          'Creando deal de cancelación SIN contacto vinculado (campo vacío)',
+        );
         // Agregar datos en el título si no hay contacto
         fields.TITLE += ` | Tel: ${telefono} | Email: ${email}`;
       }
@@ -491,16 +539,111 @@ return phone; // "+12343233"
       const { data } = await axios.post(this.dealAdd, { fields });
 
       if (data.error) {
-        console.error('Error de Bitrix al crear deal de cancelación:', data.error);
-        throw new Error(`Error de Bitrix: ${data.error_description || data.error}`);
+        console.error(
+          'Error de Bitrix al crear deal de cancelación:',
+          data.error,
+        );
+        throw new Error(
+          `Error de Bitrix: ${data.error_description || data.error}`,
+        );
       }
 
-      console.log(`✅ Deal de cancelación creado: ID ${data.result}, Embudo: 44, Etapa: C44:UC_Z9UPZW`);
+      console.log(
+        `✅ Deal de cancelación creado: ID ${data.result}, Embudo: 44, Etapa: C44:UC_Z9UPZW`,
+      );
       return data.result;
     } catch (error) {
       console.error('Error creando deal de cancelación:', error.message);
       throw error;
     }
   }
+
+
+
+  // Método para actualizar etapa + campos Hotmart en un deal
+async actualizarEtapaNegociacion(
+  dealId: number,
+  stageId: string,
+  data?: {
+    producto?: string;
+    transaccion?: string;
+    estadoCompra?: string; // aquí irá "APROBADA"
+    tipoPago?: string;
+    cuotas?: number;
+    precioOriginal?: number;
+    cupon?: string;
+    plan?: string;
+    amount?: number; // monto final
+  },
+): Promise<any> {
+  try {
+    const fields: any = {
+      STAGE_ID: stageId,
+
+      // 🔹 ESTADO COMPRA (forzado a APROBADA si no viene)
+      UF_CRM_1765826428263: data?.estadoCompra || 'APROBADA',
+    };
+
+    // 🔹 Campos Hotmart (solo si vienen)
+    if (data?.producto) {
+      fields.UF_CRM_1765826177781 = data.producto;
+    }
+
+    if (data?.transaccion) {
+      fields.UF_CRM_1765826398784 = data.transaccion;
+    }
+
+    if (data?.tipoPago) {
+      fields.UF_CRM_1765826500370 = data.tipoPago;
+    }
+
+    if (data?.cuotas !== undefined) {
+      fields.UF_CRM_1765826527201 = data.cuotas;
+    }
+
+    if (data?.precioOriginal !== undefined) {
+      fields.UF_CRM_1765826544532 = data.precioOriginal;
+    }
+
+    if (data?.cupon) {
+      fields.UF_CRM_1765826557847 = data.cupon;
+    }
+
+    if (data?.plan) {
+      fields.UF_CRM_1765826623412 = data.plan;
+    }
+
+    // 🔹 Monto final del deal
+    if (data?.amount !== undefined) {
+      fields.OPPORTUNITY = data.amount;
+    }
+
+    console.log(
+      `Actualizando deal ${dealId} con fields:`,
+      JSON.stringify(fields, null, 2),
+    );
+
+    const { data: res } = await axios.post(this.dealUpdate, {
+      id: dealId,
+      fields,
+    });
+
+    if (res.error) {
+      console.error('Error de Bitrix al actualizar deal:', res.error);
+      throw new Error(
+        `Error de Bitrix: ${res.error_description || res.error}`,
+      );
+    }
+
+    console.log(
+      `✅ Deal actualizado: ID ${dealId}, Etapa: ${stageId}, Estado: APROBADA`,
+    );
+
+    return res.result;
+  } catch (error) {
+    console.error('Error actualizando deal:', error.message);
+    throw error;
+  }
+}
 
 }
