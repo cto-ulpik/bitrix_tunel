@@ -662,4 +662,28 @@ async actualizarEtapaNegociacion(
   }
 }
 
+async crearDealPackMarcas(params: {
+  contactId: number;
+  nombre: string;
+  producto: string;
+}): Promise<number> {
+  const { contactId, nombre, producto } = params;
+
+  const fields = {
+    TITLE: `Pack Marcas: ${producto} - ${nombre}`,
+    CONTACT_ID: contactId,
+    CATEGORY_ID: '3',     // 👈 MARCAS
+    STAGE_ID: 'C3:NEW',   // 👈 etapa inicial (ajusta si usas otra)
+  };
+
+  const { data } = await axios.post(this.dealAdd, { fields });
+
+  if (data.error) {
+    throw new Error(data.error_description || data.error);
+  }
+
+  return data.result;
+}
+
+
 }

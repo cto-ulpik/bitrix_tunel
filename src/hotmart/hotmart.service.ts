@@ -6,6 +6,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
 import { Pipelines } from './common/enum/pepenlines.enum';
+import { MarcasStages } from './common/enum/marcas-stages.enum';
 
 @Injectable()
 export class HotmartService {
@@ -28,7 +29,7 @@ export class HotmartService {
 
   // ✅ MAPA producto -> pipeline
   private readonly PRODUCTO_A_PIPELINE: Record<string, Pipelines> = {
-    '123456': Pipelines.LEGAL,
+    '123456': Pipelines.LEGAL, ///no aplica pago hotmart / //TODO: eliminar
     '223456': Pipelines.EDUCACION_WEBINAR,
     '323456': Pipelines.COMUNIDAD,
     '423456': Pipelines.EDUCACION_VENTA_DIRECTA,
@@ -39,7 +40,7 @@ export class HotmartService {
     [Pipelines.LEGAL]: 'C3:UC_8N2JYU',
     [Pipelines.EDUCACION_WEBINAR]: 'C9:UC_2BKLP3',
     [Pipelines.COMUNIDAD]: 'C44:UC_QHQCN9',
-    [Pipelines.EDUCACION_VENTA_DIRECTA]: 'C34:UC_CM8QRF',
+    [Pipelines.EDUCACION_VENTA_DIRECTA]: 'C34:WON',
   };
 
   // Pipeline -> Stage cuando la compra es CANCELADA
@@ -1090,5 +1091,113 @@ Transacción: ${purchase?.transaction || 'N/A'}.`;
       </body>
       </html>
     `;
+  }
+  //TODO: VALIDAR LOS TIPOS DE PAGO Y COLOCAR LOS CORRECTOS
+  private readonly PAGO_A_STAGE: Record<string, string> = {
+    // 🔴 Transferencias
+    'Transferencia Bancaria Directa 🏦': MarcasStages.TRANSFERENCIA,
+    Transferencia: MarcasStages.TRANSFERENCIA,
+    'Depósito Bancario': MarcasStages.TRANSFERENCIA,
+
+    // 🔵 Tarjetas
+    'Tarjeta de Crédito': MarcasStages.TARJETA,
+    'Tarjeta de Débito': MarcasStages.TARJETA,
+    'Tarjeta Credito': MarcasStages.TARJETA,
+    'Tarjeta Debito': MarcasStages.TARJETA,
+  };
+
+  private detectarStagePorPago(pago: string): string {
+    return (
+      this.PAGO_A_STAGE[pago] ?? MarcasStages.TRANSFERENCIA // 👈 fallback seguro
+    );
+  }
+
+  async procesarPackMarcas(payload: any) {
+    const { data } = payload;
+
+    this.logger.log(
+      `📦 Pack Marcas recibido | Orden ${data.order_id} | Pago: ${data.pago}`,
+    );
+
+    const stageId = this.detectarStagePorPago(data.pago);
+
+    this.logger.log(`🎯 Etapa seleccionada: ${stageId}`);
+
+    // 1️⃣ Buscar o crear contacto
+    let contacto = await this.bitrixService.buscarContactoPorEmailOTelefono(
+      data.email,
+      data.telefono,
+    );
+
+    let contactId: number;
+
+    if (contacto) {
+      contactId = Number(contacto.ID);
+      this.logger.log(`✅ Contacto existente: ${contactId}`);
+    } else {
+      contactId = await this.bitrixService.crearContacto(
+        data.nombre,
+        data.telefono,
+      );
+      this.logger.log(`➕ Contacto creado: ${contactId}`);
+    }
+
+    // 2️⃣ Buscar negociación EXISTENTE en embudo MARCAS (C3)
+    const PIPELINE_MARCAS = 'C3'; // 👈 embudo marcas
+    let deal = await this.bitrixService.buscarNegociacionPorContacto(
+      contactId,
+      PIPELINE_MARCAS,
+    );
+
+    let dealId: number;
+
+    if (deal) {
+      dealId = Number(deal.ID);
+      this.logger.log(`♻️ Deal existente en MARCAS: ${dealId}`);
+    } else {
+      // 3️⃣ Crear negociación SOLO si no existe en MARCAS
+      this.logger.log(`➕ Creando deal en embudo MARCAS (C3)`);
+
+      dealId = await this.bitrixService.crearDealPackMarcas({
+        contactId,
+        nombre: data.nombre,
+        producto: data.producto,
+      });
+
+      this.logger.log(`✅ Deal MARCAS creado: ${dealId}`);
+    }
+
+    // 4️⃣ Mover a la etapa según tipo de pago
+    await this.bitrixService.actualizarEtapaNegociacion(dealId, stageId, {
+      producto: data.producto,
+      estadoCompra: 'PENDIENTE',
+      transaccion: String(data.order_id),
+      tipoPago: data.pago,
+    });
+
+    // 5️⃣ Registrar actividad
+    const mensaje = `
+📌 Pack de Marcas recibido
+Marca: ${payload.nombre_marca}
+Producto: ${data.producto}
+Pago: ${data.pago}
+Orden: ${data.order_id}
+Email: ${data.email}
+Teléfono: ${data.telefono}
+`;
+
+    await this.bitrixService.registrarActividad(
+      dealId,
+      mensaje,
+      'Pack Marcas: ',
+    );
+
+    return {
+      ok: true,
+      dealId,
+      contactId,
+      stageId,
+      pipeline: 'MARCAS (C3)',
+    };
   }
 }
