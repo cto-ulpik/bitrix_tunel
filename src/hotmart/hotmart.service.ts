@@ -1106,12 +1106,18 @@ Transacción: ${purchase?.transaction || 'N/A'}.`;
     'Tarjeta Debito': MarcasStages.TARJETA,
   };
 
-  private detectarStagePorPago(pago: string): string {
+  /*   private detectarStagePorPago(pago: string): string {
     return (
       this.PAGO_A_STAGE[pago] ?? MarcasStages.TRANSFERENCIA // 👈 fallback seguro
     );
   }
+ */
 
+  private detectarStagePorPago(pago: string): string {
+    return pago === 'Transferencia Bancaria Directa 🏦'
+      ? MarcasStages.TRANSFERENCIA
+      : MarcasStages.TARJETA; // 👈 fallback seguro
+  }
   async procesarPackMarcas(payload: any) {
     const { data } = payload;
 
