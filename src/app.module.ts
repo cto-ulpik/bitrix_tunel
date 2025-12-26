@@ -4,10 +4,9 @@ import { AppService } from './app.service';
 import { JelouModule } from './jelou/jelou.module';
 import { BitrixModule } from './bitrix/bitrix.module';
 import { HotmartModule } from './hotmart/hotmart.module';
-import { DatabaseModule } from './database/database.module';
 
 @Module({
-  imports: [DatabaseModule, JelouModule, BitrixModule, HotmartModule],
+  imports: [JelouModule, BitrixModule, HotmartModule],
   controllers: [AppController],
   providers: [AppService],
 })

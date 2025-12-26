@@ -42,10 +42,17 @@ export class HotmartEventData {
     payment?: {
       method?: string;
       type?: string;
+      installments_number?: number;
     };
     status?: string;
     transaction?: string;
     recurrency_number?: number;
+    original_offer_price?: {
+      value?: number;
+    };
+    offer?: {
+      coupon_code?: string;
+    };
   };
 
   // Información de suscripción (para eventos de compra)

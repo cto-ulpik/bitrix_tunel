@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { BitrixService } from '../bitrix/bitrix.service';
 import { HotmartWebhookDto } from './dto/hotmart-webhook.dto';
-import { AuditService } from '../database/services/audit.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import axios from 'axios';
@@ -21,7 +20,6 @@ export class HotmartService {
 
   constructor(
     private readonly bitrixService: BitrixService,
-    private readonly auditService: AuditService,
   ) {
     // Asegurar que existe el directorio de logs
     this.ensureLogDirectory();
@@ -287,32 +285,8 @@ export class HotmartService {
       horaLimite: '18:00:00',
     });
 
-    // Registrar en la base de datos de auditoría
-    await this.auditService.log({
-      action: 'compra_procesada',
-      module: 'hotmart',
-      event_type: webhook.event,
-      bitrix_contact_id: String(contactId),
-      bitrix_deal_id: String(dealId),
-      bitrix_activity_id: taskId || undefined,
-      user_name: nombre,
-      user_phone: telefono,
-      user_email: email,
-      product_name: productoNombre,
-      amount: precio,
-      currency: moneda,
-      webhook_id: webhook.id,
-      status: 'success',
-      metadata: {
-        transaction: purchase?.transaction,
-        payment_method: purchase?.payment?.method,
-        payment_type: purchase?.payment?.type,
-        task_id: taskId,
-        product_id: productId,
-        pipeline_detected: pipeline,
-        stage_applied: stageId,
-      },
-    });
+    // Log de auditoría (registrado en archivo de logs)
+    this.logger.log(`Compra procesada - Contact: ${contactId}, Deal: ${dealId}, Task: ${taskId}`);
 
     return {
       status: 'compra procesada',
@@ -616,30 +590,8 @@ Transacción: ${purchase?.transaction || 'N/A'}.`;
       'Hotmart Rechazo: ',
     );
 
-    // Auditoría
-    await this.auditService.log({
-      action: 'compra_rechazada',
-      module: 'hotmart',
-      event_type: webhook.event,
-      bitrix_contact_id: String(contactId),
-      bitrix_deal_id: String(dealId),
-      user_name: nombre,
-      user_phone: telefono,
-      user_email: email,
-      product_name: productoNombre,
-      amount: amount,
-      currency: moneda,
-      webhook_id: webhook.id,
-      status: 'success',
-      metadata: {
-        transaction: purchase?.transaction,
-        payment_type: purchase?.payment?.type,
-        product_id: productId,
-        pipeline_detected: pipeline,
-        stage_applied: stageIdFinal,
-        purchase_status: purchase?.status,
-      },
-    });
+    // Log de auditoría (registrado en archivo de logs)
+    this.logger.log(`Compra rechazada procesada - Contact: ${contactId}, Deal: ${dealId}`);
 
     return {
       status: 'compra rechazada procesada',
@@ -765,25 +717,8 @@ Transacción: ${purchase?.transaction || 'N/A'}.`;
       'Hotmart Cancelación: ',
     );
 
-    // Registrar en auditoría
-    await this.auditService.log({
-      action: 'cancelacion_suscripcion',
-      module: 'hotmart',
-      event_type: webhook.event,
-      bitrix_contact_id: contactId ? String(contactId) : undefined,
-      bitrix_deal_id: String(dealId),
-      user_name: nombre,
-      user_phone: telefono,
-      user_email: email,
-      product_name: productoNombre,
-      webhook_id: webhook.id,
-      status: 'success',
-      metadata: {
-        plan: planNombre,
-        subscription_id: subscription?.id,
-        subscriber_code: subscriber.code,
-      },
-    });
+    // Log de auditoría (registrado en archivo de logs)
+    this.logger.log(`Cancelación de suscripción registrada - Contact: ${contactId || 'N/A'}, Deal: ${dealId}`);
 
     return {
       status: 'cancelación de suscripción registrada',

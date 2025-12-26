@@ -685,5 +685,4 @@ async crearDealPackMarcas(params: {
   return data.result;
 }
 
-
 }
