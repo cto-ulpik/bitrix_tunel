@@ -48,30 +48,43 @@ export class CursosService {
 
   // Método auxiliar para inicializar datos
   async seedInitialData(): Promise<void> {
-    const cursosIniciales = [
-      { id: 5634737, curso: 'DGW', mes: 'Enero', desc: 'DGW' },
-      { id: 6647281, curso: 'Emprende MMV', mes: 'Febrero', desc: 'Emprende MMV' },
-      { id: 6091983, curso: 'Impuestos sin Miedo', mes: 'marzo', desc: 'Impuestos sin Miedo' },
-      { id: 6647284, curso: 'Evento presencial Quito', mes: 'abril', desc: 'Evento presencial Quito' },
-      { id: 6647285, curso: 'Curso de alguien del team (nuevo o existente)', mes: 'mayo', desc: 'Curso de alguien del team (nuevo o existente)' },
-      { id: 6442736, curso: 'Cripto Pro  (speed launch)', mes: 'junio', desc: 'Cripto Pro  (speed launch)' },
-      { id: 5634738, curso: 'DGW', mes: 'julio', desc: 'DGW' },
-      { id: 6647289, curso: 'Curso de alguien del team (nuevo o existente)', mes: 'agosto', desc: 'Curso de alguien del team (nuevo o existente)' },
-      { id: 6647280, curso: 'Emprende MMV (2ª edición)', mes: 'septiembre', desc: 'Emprende MMV (2ª edición)' },
-      { id: 5634711, curso: 'DGW (3ª edición)', mes: 'octubre', desc: 'DGW (3ª edición)' },
-      { id: 6442712, curso: 'Cripto Pro (2ª edición)', mes: 'noviembre', desc: 'Cripto Pro (2ª edición)' },
-      { id: 6647213, curso: 'Nuevo curso que facture 15k', mes: 'diciembre', desc: 'Nuevo curso que facture 15k' },
-      { id: 5845552, curso: 'Ulpik Priv - Comunidad', mes: 'Ulpik Priv - Comunidad', desc: 'Ulpik Priv - Comunidad' },
-    ];
+    try {
+      const cursosIniciales = [
+        { id: 5634737, curso: 'DGW', mes: 'Enero', desc: 'DGW' },
+        { id: 6647281, curso: 'Emprende MMV', mes: 'Febrero', desc: 'Emprende MMV' },
+        { id: 6091983, curso: 'Impuestos sin Miedo', mes: 'marzo', desc: 'Impuestos sin Miedo' },
+        { id: 6647284, curso: 'Evento presencial Quito', mes: 'abril', desc: 'Evento presencial Quito' },
+        { id: 6647285, curso: 'Curso de alguien del team (nuevo o existente)', mes: 'mayo', desc: 'Curso de alguien del team (nuevo o existente)' },
+        { id: 6442736, curso: 'Cripto Pro  (speed launch)', mes: 'junio', desc: 'Cripto Pro  (speed launch)' },
+        { id: 5634738, curso: 'DGW', mes: 'julio', desc: 'DGW' },
+        { id: 6647289, curso: 'Curso de alguien del team (nuevo o existente)', mes: 'agosto', desc: 'Curso de alguien del team (nuevo o existente)' },
+        { id: 6647280, curso: 'Emprende MMV (2ª edición)', mes: 'septiembre', desc: 'Emprende MMV (2ª edición)' },
+        { id: 5634711, curso: 'DGW (3ª edición)', mes: 'octubre', desc: 'DGW (3ª edición)' },
+        { id: 6442712, curso: 'Cripto Pro (2ª edición)', mes: 'noviembre', desc: 'Cripto Pro (2ª edición)' },
+        { id: 6647213, curso: 'Nuevo curso que facture 15k', mes: 'diciembre', desc: 'Nuevo curso que facture 15k' },
+        { id: 5845552, curso: 'Ulpik Priv - Comunidad', mes: 'Ulpik Priv - Comunidad', desc: 'Ulpik Priv - Comunidad' },
+      ];
 
-    for (const cursoData of cursosIniciales) {
-      const existe = await this.cursoRepository.findOne({
-        where: { id: cursoData.id },
-      });
+      let creados = 0;
+      let existentes = 0;
 
-      if (!existe) {
-        await this.cursoRepository.save(cursoData);
+      for (const cursoData of cursosIniciales) {
+        const existe = await this.cursoRepository.findOne({
+          where: { id: cursoData.id },
+        });
+
+        if (!existe) {
+          await this.cursoRepository.save(cursoData);
+          creados++;
+        } else {
+          existentes++;
+        }
       }
+
+      console.log(`✅ Cursos inicializados: ${creados} creados, ${existentes} ya existían`);
+    } catch (error) {
+      console.error('❌ Error inicializando cursos:', error.message);
+      // No lanzar error para que la app pueda iniciar aunque falle la inicialización
     }
   }
 }
