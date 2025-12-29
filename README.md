@@ -23,7 +23,63 @@
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Sistema de integración Bitrix Tunnel - API para gestionar webhooks de Hotmart, Jelou y Bitrix24, con gestión de cursos en SQLite.
+
+## 🚀 Módulos Principales
+
+- **Hotmart**: Procesamiento de webhooks de compras y suscripciones
+- **Jelou**: Integración con WhatsApp para atención al cliente
+- **Bitrix**: Integración con Bitrix24 CRM
+- **Cursos**: API REST para gestión de cursos en SQLite
+
+## 📚 API de Cursos
+
+API REST para gestionar cursos con operaciones GET, POST y PUT.
+
+### Endpoints
+
+- `GET /api/cursos` - Obtener todos los cursos
+- `GET /api/cursos/:id` - Obtener un curso por ID
+- `POST /api/cursos` - Crear un nuevo curso
+- `PUT /api/cursos/:id` - Actualizar un curso existente
+
+### Ejemplo de uso
+
+```bash
+# Obtener todos los cursos
+curl http://localhost:3333/api/cursos
+
+# Obtener un curso específico
+curl http://localhost:3333/api/cursos/5634737
+
+# Crear un nuevo curso
+curl -X POST http://localhost:3333/api/cursos \
+  -H "Content-Type: application/json" \
+  -d '{
+    "id": 1234567,
+    "curso": "Nuevo Curso",
+    "mes": "Enero",
+    "desc": "Descripción del curso"
+  }'
+
+# Actualizar un curso
+curl -X PUT http://localhost:3333/api/cursos/5634737 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "curso": "Curso Actualizado",
+    "mes": "Febrero",
+    "desc": "Nueva descripción"
+  }'
+```
+
+Para más detalles, consulta [CURSOS_API.md](./CURSOS_API.md)
+
+## 🗄️ Base de Datos
+
+- **Tipo**: SQLite
+- **Archivo**: `database.sqlite`
+- **Tabla**: `cursos` (se crea automáticamente al iniciar la aplicación)
+- **Datos iniciales**: Se cargan automáticamente 13 cursos predefinidos al arrancar
 
 ## Project setup
 
@@ -59,16 +115,27 @@ $ npm run test:cov
 
 ## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+### Scripts de Despliegue
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+- `./deploy.sh` - Despliegue completo (pull, install, build, restart)
+- `./restart-prod.sh` - Reinicio rápido en producción
+- `./fix-prod.sh` - Resolver problemas y reiniciar
+
+### Despliegue Manual
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# Conectarse al servidor
+ssh root@159.223.204.96
+
+# Actualizar código
+cd /var/www/bitrix_tunel
+git pull origin master
+npm install
+npm run build
+pm2 restart bitrix-tunnel
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Para más detalles, consulta [DEPLOYMENT.md](./DEPLOYMENT.md)
 
 ## Resources
 

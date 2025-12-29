@@ -1,11 +1,18 @@
-import { Module } from '@nestjs/common';
+import { Module, Global } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Curso } from '../cursos/entities/curso.entity';
 
-// DatabaseModule vacío - los servicios de auditoría fueron eliminados
-// Este módulo se mantiene por compatibilidad pero no exporta nada
+@Global()
 @Module({
-  imports: [],
-  controllers: [],
-  providers: [],
-  exports: [],
+  imports: [
+    TypeOrmModule.forRoot({
+      type: 'sqlite',
+      database: 'database.sqlite',
+      entities: [Curso],
+      synchronize: true, // Solo para desarrollo, en producción usar migraciones
+      logging: false,
+    }),
+  ],
+  exports: [TypeOrmModule],
 })
 export class DatabaseModule {}
